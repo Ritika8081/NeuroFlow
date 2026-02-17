@@ -1,0 +1,6 @@
+# requirements.txt for FastAPI EEG backend
+fastapi
+uvicorn
+mne
+numpy
+scipy

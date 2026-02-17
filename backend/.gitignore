@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+*.out
+*.tmp
+
+# VSCode
+.vscode/
+
+# Misc
+*.swp
+*.swo
+.idea/
