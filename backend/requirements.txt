@@ -1,6 +1,8 @@
 # requirements.txt for FastAPI EEG backend
 fastapi
-uvicorn
+uvicorn[standard]
+python-multipart
 mne
 numpy
 scipy
+scikit-learn

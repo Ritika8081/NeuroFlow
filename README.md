@@ -61,7 +61,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone <your-repo-url>
-cd neuroflow-lab/nextjs-app
+cd neuroflow/nextjs-app
 npm install
 ```
 
@@ -79,16 +79,24 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Backend Setup
 
-The EEG cleaning and parsing backend is a FastAPI app located in `../backend`. Start it separately:
+The EEG cleaning and parsing backend is a FastAPI app located in `backend/`. Start it separately:
 
 ```bash
-cd ../backend
+cd backend
+pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+The frontend expects the API at `http://localhost:8000`. Set `NEXT_PUBLIC_API_URL` if your backend runs elsewhere.
+
+### Data Sources
+
+- **PhysioNet**: Load the [EEG Motor Movement/Imagery](https://physionet.org/content/eegmmidb/1.0.0/) dataset directly. Data is downloaded on first use to `~/mne_data`.
+- **Upload**: Upload your own EEG files (.edf, .csv, .mat).
+
 ### File Structure
 
-- `src/app/page.tsx`: Main UI (upload, context panel, filter controls, visualization)
+- `src/app/page.jsx`: Main UI (upload/PhysioNet, context panel, filter controls, visualization)
 - `src/app/docs/page.tsx`: Documentation page
 - `src/app/about/page.tsx`: About page (project goals, rationale)
 - `backend/main.py`: FastAPI backend for EEG parsing and cleaning
