@@ -1,29 +1,478 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ================================================================== */
+/*  NeuroFlow Lab — Calm Confidence                                   */
+/*  Warm palette, refined violet accent, soft depth                   */
+/* ================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light — warm off-white, never cold */
+  --bg: 250 250 248;
+  --bg-deep: 244 244 240;
+  --surface: 255 255 255;
+  --surface-2: 248 248 245;
+  --surface-3: 241 240 236;
+  --border: 228 228 222;
+  --border-strong: 208 208 200;
+  --text: 20 18 25;
+  --text-soft: 70 66 80;
+  --muted: 118 113 130;
+  --subtle: 165 160 175;
+
+  /* Single sophisticated accent — refined violet */
+  --accent: 124 58 237;          /* violet-600 */
+  --accent-soft: 139 92 246;     /* violet-500 */
+  --accent-bg: 245 243 255;      /* very pale violet wash */
+  --accent-border: 196 181 253;
+  --accent-fg: 91 33 182;        /* readable accent text */
+
+  /* Auxiliary tone — soft coral, never primary */
+  --coral: 244 114 182;
+
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgb(15 15 30 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(15 15 30 / 0.06), 0 2px 4px -2px rgb(15 15 30 / 0.04);
+  --shadow-lg: 0 10px 32px -8px rgb(15 15 30 / 0.10), 0 4px 12px -4px rgb(15 15 30 / 0.06);
+  --shadow-accent: 0 8px 24px -8px rgb(124 58 237 / 0.30);
+
+  --foreground: var(--text);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  /* Dark — warm near-black, not blue */
+  --bg: 12 11 16;
+  --bg-deep: 8 7 12;
+  --surface: 20 19 26;
+  --surface-2: 28 26 36;
+  --surface-3: 38 36 48;
+  --border: 48 45 60;
+  --border-strong: 70 65 82;
+  --text: 248 246 252;
+  --text-soft: 205 200 220;
+  --muted: 148 142 162;
+  --subtle: 105 100 118;
+
+  --accent: 167 139 250;         /* violet-400 — brighter on dark */
+  --accent-soft: 196 181 253;
+  --accent-bg: 30 22 50;
+  --accent-border: 91 33 182;
+  --accent-fg: 196 181 253;
+
+  --coral: 251 182 209;
+
+  --success: 52 211 153;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.30), 0 2px 4px -2px rgb(0 0 0 / 0.20);
+  --shadow-lg: 0 14px 36px -10px rgb(0 0 0 / 0.50), 0 6px 16px -6px rgb(0 0 0 / 0.30);
+  --shadow-accent: 0 10px 30px -8px rgb(139 92 246 / 0.40);
+
+  --foreground: var(--text);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #00000;
-    --foreground: #0a0a0a;
-  }
+* { border-color: rgb(var(--border)); }
+
+html { color-scheme: light dark; }
+.dark { color-scheme: dark; }
+
+html, body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  position: relative;
 }
+
+/* Subtle dot pattern background — barely visible, adds depth */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+  background-image: radial-gradient(rgb(var(--border) / 0.6) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  opacity: 0.4;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+}
+
+.dark body::before {
+  opacity: 0.5;
+}
+
+/* Soft accent glow behind hero */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% -10%, rgb(var(--accent) / 0.06), transparent 70%),
+    radial-gradient(ellipse 50% 30% at 90% 20%, rgb(var(--coral) / 0.04), transparent 70%);
+}
+
+.dark body::after {
+  background:
+    radial-gradient(ellipse 60% 40% at 50% -10%, rgb(var(--accent) / 0.12), transparent 70%),
+    radial-gradient(ellipse 50% 30% at 90% 20%, rgb(var(--coral) / 0.05), transparent 70%);
+}
+
+/* ================================================================== */
+/*  Typography                                                         */
+/* ================================================================== */
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
+  font-feature-settings: "tnum", "ss01";
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: rgb(var(--muted));
+  font-weight: 500;
+}
+
+.h-display {
+  font-size: clamp(2.75rem, 5.5vw, 4.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 500;
+}
+
+.h-section {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+}
+
+/* ================================================================== */
+/*  Surfaces                                                           */
+/* ================================================================== */
+
+.surface {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  box-shadow: var(--shadow-sm);
+}
+
+.surface-elevated {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  box-shadow: var(--shadow-md);
+}
+
+.surface-soft {
+  background: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--border));
+}
+
+.hover-lift {
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+.hover-lift:hover {
+  box-shadow: var(--shadow-md);
+  border-color: rgb(var(--border-strong));
+  transform: translateY(-1px);
+}
+
+/* Bento card — interactive surface with accent glow on hover */
+.bento {
+  position: relative;
+  isolation: isolate;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.bento:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--accent) / 0.4);
+  box-shadow: var(--shadow-md), 0 0 0 4px rgb(var(--accent) / 0.06);
+}
+
+/* Subtle gradient highlight (used on display headlines, sparingly) */
+.text-display-gradient {
+  background: linear-gradient(180deg, rgb(var(--text)) 0%, rgb(var(--text-soft)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Accent text — single token, used on key brand moments */
+.text-accent {
+  color: rgb(var(--accent));
+}
+.dark .text-accent {
+  color: rgb(var(--accent-soft));
+}
+
+/* Big numeric stat */
+.num-display {
+  font-family: var(--font-mono), monospace;
+  font-feature-settings: "tnum", "ss01";
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+/* ================================================================== */
+/*  Buttons                                                            */
+/* ================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.95rem;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:focus-visible {
+  outline: 2px solid rgb(var(--accent) / 0.5);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  color: white;
+  background: rgb(var(--accent));
+  border-color: rgb(var(--accent));
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover:not(:disabled) {
+  background: rgb(var(--accent-fg));
+  border-color: rgb(var(--accent-fg));
+  box-shadow: var(--shadow-accent);
+  transform: translateY(-1px);
+}
+.dark .btn-primary {
+  color: rgb(20 18 25);
+}
+.dark .btn-primary:hover:not(:disabled) {
+  background: rgb(var(--accent-soft));
+  border-color: rgb(var(--accent-soft));
+}
+
+.btn-secondary {
+  color: rgb(var(--text));
+  background: rgb(var(--surface));
+  border-color: rgb(var(--border));
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgb(var(--surface-2));
+  border-color: rgb(var(--border-strong));
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-ghost {
+  color: rgb(var(--muted));
+  background: transparent;
+  padding: 0.55rem 0.75rem;
+}
+.btn-ghost:hover:not(:disabled) {
+  color: rgb(var(--text));
+  background: rgb(var(--surface-2));
+}
+
+.btn-link {
+  color: rgb(var(--accent-fg));
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+.btn-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ================================================================== */
+/*  Form controls                                                      */
+/* ================================================================== */
+
+.input {
+  width: 100%;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--text));
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  box-shadow: var(--shadow-sm);
+}
+.input:hover { border-color: rgb(var(--border-strong)); }
+.input:focus {
+  outline: none;
+  border-color: rgb(var(--accent));
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.14);
+  background: rgb(var(--surface));
+}
+.input::placeholder { color: rgb(var(--subtle)); }
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='1.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.9rem;
+  padding-right: 2rem;
+}
+
+/* ================================================================== */
+/*  Chips, badges, kbd                                                 */
+/* ================================================================== */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--muted));
+}
+
+.chip-accent {
+  background: rgb(var(--accent-bg));
+  border-color: rgb(var(--accent) / 0.25);
+  color: rgb(var(--accent-fg));
+}
+
+.kbd {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 0.3rem;
+  background: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--muted));
+  font-weight: 500;
+  box-shadow: 0 1px 0 rgb(var(--border));
+}
+
+/* ================================================================== */
+/*  Animations (subtle)                                                */
+/* ================================================================== */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 0.4s ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, rgb(var(--surface-2)), rgb(var(--accent) / 0.5), rgb(var(--surface-2)));
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+@keyframes bar-wave {
+  0%, 100% { transform: scaleY(0.32); }
+  50% { transform: scaleY(1); }
+}
+.wave-bar {
+  display: inline-block;
+  width: 2.5px;
+  background: currentColor;
+  border-radius: 1.5px;
+  animation: bar-wave 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes wave-flow {
+  to { stroke-dashoffset: -240; }
+}
+.wave-flow {
+  stroke-dasharray: 240 0;
+  animation: wave-flow 8s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+.pulse-soft { animation: pulse-soft 2.5s ease-in-out infinite; }
+
+/* ================================================================== */
+/*  Scrollbar                                                          */
+/* ================================================================== */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted) / 0.5); background-clip: padding-box; }
+
+/* ================================================================== */
+/*  Misc                                                               */
+/* ================================================================== */
+
+.divider {
+  height: 1px;
+  background: rgb(var(--border));
+}
+
+.text-balance { text-wrap: balance; }
+
+::selection {
+  background: rgb(var(--accent) / 0.22);
+  color: rgb(var(--text));
+}
+
+/* Legacy compat — keep these classes mapping to new tokens */
+.glass {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  box-shadow: var(--shadow-sm);
+}
+.glass-strong {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  box-shadow: var(--shadow-md);
+}
+.gradient-text { color: rgb(var(--text)); }
+.gradient-pan { background-position: 0 !important; }
+.lume { position: relative; }
+.neural-pulse { animation: pulse-soft 2.5s ease-in-out infinite; }
+.signal-flow { /* removed */ }

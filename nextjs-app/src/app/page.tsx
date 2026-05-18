@@ -1,153 +1,169 @@
 "use client";
 
-import React from "react";
-import { useState, useRef, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EEGVisualization from "../components/EEGVisualization";
+import AIInsights from "../components/AIInsights";
+import AIAssistant from "../components/AIAssistant";
+import PSDView from "../components/PSDView";
+import SpectrogramView from "../components/SpectrogramView";
+import TopographyView from "../components/TopographyView";
+import BandPowerView from "../components/BandPowerView";
+import QualityDashboard from "../components/QualityDashboard";
+import ReportPanel from "../components/ReportPanel";
+import AIProseReport from "../components/AIProseReport";
+import AICodeGen from "../components/AICodeGen";
+import AISettingsModal from "../components/AISettingsModal";
+import AnnotationsView from "../components/AnnotationsView";
+import WorkspaceSidebar, { SidebarItem } from "../components/WorkspaceSidebar";
+import { Banner, Card, FilterField, Segmented, SectionHeader, Spinner, Stat } from "../components/ui";
+import { runAnalysis, AnalysisBundle } from "../lib/insights";
+import { runAnalysisAsync } from "../lib/analysis-worker";
+import { parseTextEEG, SampleRecording, SAMPLES } from "../lib/sample-data";
+import { HistoryEntry, loadHistory, makeId, saveHistoryEntry } from "../lib/history";
+import { ParsedPipelineRequest, AssistantContext } from "../lib/assistant";
+import AutoCleanPanel from "../components/AutoCleanPanel";
+import RecommendationsPanel from "../components/RecommendationsPanel";
+import { recommend } from "../lib/recommendations";
+import SleepStagingView from "../components/SleepStagingView";
+import ConnectivityView from "../components/ConnectivityView";
+import PipelineTemplates from "../components/PipelineTemplates";
+import ComparisonView from "../components/ComparisonView";
+import GlossaryView from "../components/GlossaryView";
+import LiteratureSearch from "../components/LiteratureSearch";
+import MethodsWriteup from "../components/MethodsWriteup";
+import { AutoCleanRecipe } from "../lib/autoclean";
+import { PipelineTemplate } from "../lib/templates";
+import DecorativeWave from "../components/DecorativeWave";
+import CohortView from "../components/CohortView";
+import ICAView from "../components/ICAView";
+import BIDSExport from "../components/BIDSExport";
+
+type EEGUseCase =
+  | "Resting-state EEG"
+  | "Cognitive / task-based EEG"
+  | "Sleep / overnight EEG"
+  | "BCI / neurofeedback"
+  | "Low-cost device";
+
+const PRESETS: Record<
+  EEGUseCase,
+  { bandpassLow: number; bandpassHigh: number; notchFreq: number; lowpassFreq: number; highpassFreq: number }
+> = {
+  "Resting-state EEG": { bandpassLow: 1, bandpassHigh: 45, notchFreq: 50, lowpassFreq: 45, highpassFreq: 0.5 },
+  "Cognitive / task-based EEG": { bandpassLow: 1, bandpassHigh: 50, notchFreq: 50, lowpassFreq: 50, highpassFreq: 0.5 },
+  "Sleep / overnight EEG": { bandpassLow: 0.1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 0.1 },
+  "BCI / neurofeedback": { bandpassLow: 1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 1 },
+  "Low-cost device": { bandpassLow: 1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 1 },
+};
+
+const ACCEPTED = ".edf,.csv,.mat,.txt,.tsv,.json";
+
+const IC = {
+  waveform: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12h2l2-7 4 14 2-7 2 3h6"/></svg>,
+  frequency: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 20V10m4 10V4m4 16v-7m4 7V8m4 12v-4"/></svg>,
+  spectro: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>,
+  topo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>,
+  bands: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h12M3 18h7"/></svg>,
+  insights: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>,
+  quality: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+  annot: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v18l7-4 7 4V3H5z"/></svg>,
+  report: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m-7 6h8a2 2 0 002-2V8l-6-6H6a2 2 0 00-2 2v16a2 2 0 002 2z"/></svg>,
+  assist: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12a9 9 0 01-13.5 7.79L3 21l1.21-4.5A9 9 0 1121 12z"/></svg>,
+  autoclean: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12l5 5L20 7"/></svg>,
+  recs: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+  sleep: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>,
+  connect: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path strokeLinecap="round" d="M7 5h10M5 7v10M19 7v10M7 19h10"/></svg>,
+  tpl: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7"/></svg>,
+  compare: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18M3 9h6M15 21V3M21 15h-6"/></svg>,
+  glossary: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h13a3 3 0 013 3v13a1 1 0 01-1 1H7a3 3 0 01-3-3V4zM4 4v13a3 3 0 003 3"/></svg>,
+  lit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><circle cx="11" cy="11" r="7"/><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"/></svg>,
+  methods: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v15H6.5A2.5 2.5 0 004 19.5z"/></svg>,
+  ica: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path strokeLinecap="round" d="M8 6h8M8 18h8M6 8v8M18 8v8"/></svg>,
+  cohort: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>,
+  bids: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h12l4 4v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zM14 4v6h6"/></svg>,
+};
 
 export default function Home() {
-  // ...existing code...
-  const [file, setFile] = React.useState<File | null>(null);
-  const [dragActive, setDragActive] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = React.useState(false);
-  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [cleanedResult, setCleanedResult] = useState<any>(null);
   const [showCleaned, setShowCleaned] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Filter params
-  // Info / Help Section state
-  const [showHelp, setShowHelp] = useState(false);
-  // EEG Context Panel state
+  const [activeTab, setActiveTab] = useState("insights");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+
   const [eegUseCase, setEegUseCase] = useState<EEGUseCase>("Resting-state EEG");
-  const [eegAgeGroup, setEegAgeGroup] = useState("Healthy adults");
   const [eegDeviceType, setEegDeviceType] = useState("Research-grade system");
-
-  // Filter params (preset logic)
-  type EEGUseCase =
-    | "Resting-state EEG"
-    | "Cognitive / task-based EEG"
-    | "Sleep / overnight EEG"
-    | "BCI / neurofeedback"
-    | "Low-cost device";
-  
-  const presetFilters: Record<EEGUseCase, {
-    bandpassLow: number;
-    bandpassHigh: number;
-    notchFreq: number;
-    lowpassFreq: number;
-    highpassFreq: number;
-  }> = {
-    "Resting-state EEG": { bandpassLow: 1, bandpassHigh: 45, notchFreq: 50, lowpassFreq: 45, highpassFreq: 0.5 },
-    "Cognitive / task-based EEG": { bandpassLow: 1, bandpassHigh: 50, notchFreq: 50, lowpassFreq: 50, highpassFreq: 0.5 },
-    "Sleep / overnight EEG": { bandpassLow: 0.1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 0.1 },
-    "BCI / neurofeedback": { bandpassLow: 1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 1 },
-    "Low-cost device": { bandpassLow: 1, bandpassHigh: 40, notchFreq: 50, lowpassFreq: 40, highpassFreq: 1 },
-  };
-  // Device-specific notch
   const deviceNotch = eegDeviceType === "Consumer / low-cost device" ? 60 : 50;
-  // Use preset or allow override
-  const [bandpassLow, setBandpassLow] = useState(presetFilters[eegUseCase].bandpassLow);
-  const [bandpassHigh, setBandpassHigh] = useState(presetFilters[eegUseCase].bandpassHigh);
+  const [bandpassLow, setBandpassLow] = useState(PRESETS[eegUseCase].bandpassLow);
+  const [bandpassHigh, setBandpassHigh] = useState(PRESETS[eegUseCase].bandpassHigh);
   const [notchFreq, setNotchFreq] = useState(deviceNotch);
-  const [lowpassFreq, setLowpassFreq] = useState<number|null>(presetFilters[eegUseCase].lowpassFreq);
-  const [highpassFreq, setHighpassFreq] = useState<number|null>(presetFilters[eegUseCase].highpassFreq);
-  
-  // Update filter values when context changes
-  React.useEffect(() => {
-    setBandpassLow(presetFilters[eegUseCase].bandpassLow);
-    setBandpassHigh(presetFilters[eegUseCase].bandpassHigh);
-    setLowpassFreq(presetFilters[eegUseCase].lowpassFreq);
-    setHighpassFreq(presetFilters[eegUseCase].highpassFreq);
-    setNotchFreq(deviceNotch);
-  }, [eegUseCase, eegDeviceType]);
-  // Debounce ref
-  const debounceRef = useRef<NodeJS.Timeout|null>(null);
+  const [lowpassFreq, setLowpassFreq] = useState<number | null>(PRESETS[eegUseCase].lowpassFreq);
+  const [highpassFreq, setHighpassFreq] = useState<number | null>(PRESETS[eegUseCase].highpassFreq);
 
-  function handleDrag(e: React.DragEvent<HTMLDivElement>) {
+  useEffect(() => {
+    const p = PRESETS[eegUseCase];
+    setBandpassLow(p.bandpassLow);
+    setBandpassHigh(p.bandpassHigh);
+    setLowpassFreq(p.lowpassFreq);
+    setHighpassFreq(p.highpassFreq);
+    setNotchFreq(deviceNotch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eegUseCase, eegDeviceType]);
+
+  useEffect(() => {
+    setHistory(loadHistory());
+  }, []);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  }
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
+  };
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
-    }
-  }
+    if (e.dataTransfer.files?.[0]) setFile(e.dataTransfer.files[0]);
+  };
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) setFile(e.target.files[0]);
+  };
 
-  async function handleUpload() {
-    if (!file) return;
-    setUploading(true);
-    setUploadProgress(0);
-    setError(null);
-    setUploadResult(null);
-    setCleanedResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("http://localhost:8000/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        throw new Error("Upload failed");
-      }
-      const uploadData = await res.json();
-      // Now parse EEG
-      const parseRes = await fetch("http://localhost:8000/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tmp_path: uploadData.tmp_path }),
-      });
-      if (!parseRes.ok) {
-        throw new Error("Parse failed");
-      }
-      const parsed = await parseRes.json();
-      setUploadResult(parsed);
-      // Immediately clean after upload
-      await cleanEEG(parsed, {
-        bandpass_low: bandpassLow,
-        bandpass_high: bandpassHigh,
-        notch_freq: notchFreq,
-        lowpass_freq: lowpassFreq,
-        highpass_freq: highpassFreq,
-      });
-      setShowCleaned(true);
-    } catch (err: any) {
-      setError(err.message || "Unknown error");
-    } finally {
-      setUploading(false);
-    }
-  }
+  const currentFilterParams = () => ({
+    bandpass_low: bandpassLow,
+    bandpass_high: bandpassHigh,
+    notch_freq: notchFreq,
+    lowpass_freq: lowpassFreq,
+    highpass_freq: highpassFreq,
+  });
 
-  // Clean EEG with debounce
   const cleanEEG = useCallback(async (baseData: any, params: any) => {
+    if (baseData?.is_synthetic || baseData?.client_parsed) {
+      setCleanedResult({
+        ...baseData,
+        cleaned_data: baseData.data ?? baseData.preview,
+        ...params,
+      });
+      return;
+    }
     setCleaning(true);
     setError(null);
     try {
-      // Always send the full data array if available
-      let payload = { ...baseData, ...params };
-      if (baseData.data) {
-        payload = { ...payload, data: baseData.data };
-      } else if (baseData.cleaned_data) {
-        payload = { ...payload, data: baseData.cleaned_data };
-      }
-      // Remove preview to avoid backend using it
+      let payload: any = { ...baseData, ...params };
+      if (baseData.data) payload = { ...payload, data: baseData.data };
+      else if (baseData.cleaned_data) payload = { ...payload, data: baseData.cleaned_data };
       if (payload.preview) delete payload.preview;
       const res = await fetch("http://localhost:8000/clean", {
         method: "POST",
@@ -164,282 +180,836 @@ export default function Home() {
     }
   }, []);
 
-  // Debounced filter change handler
-  const handleFilterChange = (params: any) => {
-    if (!uploadResult) return;
-    setCleaning(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      cleanEEG(uploadResult, params);
-    }, 500);
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    setUploadResult(null);
+    setCleanedResult(null);
+    try {
+      const isText = /\.(csv|tsv|txt|json)$/i.test(file.name);
+      if (isText) {
+        const text = await file.text();
+        const parsed = parseTextEEG(text, file.name);
+        setUploadResult(parsed);
+        await cleanEEG(parsed, currentFilterParams());
+        setShowCleaned(true);
+        setActiveTab("insights");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("http://localhost:8000/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed — is the backend running on :8000?");
+      const uploadData = await res.json();
+      const parseRes = await fetch("http://localhost:8000/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tmp_path: uploadData.tmp_path }),
+      });
+      if (!parseRes.ok) throw new Error("Parse failed");
+      const parsed = await parseRes.json();
+      setUploadResult(parsed);
+      await cleanEEG(parsed, currentFilterParams());
+      setShowCleaned(true);
+      setActiveTab("insights");
+    } catch (err: any) {
+      setError(err.message || "Unknown error");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-100 dark:from-zinc-900 dark:via-zinc-950 dark:to-zinc-900 font-sans">
-      {/* Main Header */}
-      <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg backdrop-blur border-b border-zinc-200 dark:border-zinc-800">
-        <div className="max-w-4xl mx-auto flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <h1 className="inline-block bg-white/20 rounded-full px-6 py-3 font-extrabold text-3xl tracking-tight shadow text-blue-700 drop-shadow-lg">NeuroFlow Lab</h1>
-            <span className="hidden sm:inline text-white/80 font-semibold text-lg">EEG Research Tool</span>
+  const debouncedClean = (partial: Partial<Record<string, number | null>> = {}) => {
+    if (!uploadResult) return;
+    const params = { ...currentFilterParams(), ...partial };
+    setCleaning(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => cleanEEG(uploadResult, params), 450);
+  };
+
+  const loadSample = (rec: SampleRecording) => {
+    setError(null);
+    setUploadResult(rec);
+    setCleanedResult({ ...rec, cleaned_data: rec.data });
+    setFile(null);
+    setShowCleaned(true);
+    setActiveTab("insights");
+  };
+
+  const activeData = useMemo(
+    () =>
+      showCleaned && cleanedResult
+        ? { ...cleanedResult, preview: cleanedResult.cleaned_data ?? cleanedResult.preview }
+        : uploadResult,
+    [showCleaned, cleanedResult, uploadResult]
+  );
+
+  const [analysis, setAnalysis] = useState<AnalysisBundle | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  useEffect(() => {
+    if (!activeData) {
+      setAnalysis(null);
+      return;
+    }
+    const data = activeData.cleaned_data ?? activeData.preview ?? activeData.data;
+    if (!data || data.length === 0) {
+      setAnalysis(null);
+      return;
+    }
+    let cancelled = false;
+    setAnalyzing(true);
+    runAnalysisAsync(data, activeData.channel_names, activeData.sampling_rate)
+      .then((bundle) => {
+        if (cancelled) return;
+        setAnalysis(bundle);
+        setAnalyzing(false);
+      })
+      .catch((e) => {
+        console.error(e);
+        if (cancelled) return;
+        try {
+          setAnalysis(runAnalysis(data, activeData.channel_names, activeData.sampling_rate));
+        } catch (err) {
+          console.error(err);
+          setAnalysis(null);
+        }
+        setAnalyzing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeData]);
+
+  const assistantContext: AssistantContext | null = useMemo(() => {
+    if (!activeData || !analysis) return null;
+    return {
+      analysis,
+      channelNames: activeData.channel_names,
+      sampleRate: activeData.sampling_rate,
+      durationSec: activeData.duration_sec,
+      fileName: activeData.filename || "recording",
+    };
+  }, [activeData, analysis]);
+
+  useEffect(() => {
+    if (!uploadResult || !analysis) return;
+    const id = uploadResult.__id ?? makeId();
+    if (!uploadResult.__id) uploadResult.__id = id;
+    saveHistoryEntry({
+      id,
+      fileName: uploadResult.filename || "recording",
+      channels: uploadResult.channels,
+      sampleRate: uploadResult.sampling_rate,
+      duration: uploadResult.duration_sec,
+      channelNames: uploadResult.channel_names,
+      uploadedAt: Date.now(),
+      cognitiveState: analysis.cognitive.state,
+      dominantBand: analysis.dominantBand,
+      qualityScore: analysis.quality.overall,
+      isSample: !!uploadResult.is_synthetic,
+    });
+    setHistory(loadHistory());
+  }, [uploadResult, analysis]);
+
+  const onApplyPipeline = (req: ParsedPipelineRequest) => {
+    if (req.bandpassLow !== undefined) setBandpassLow(req.bandpassLow);
+    if (req.bandpassHigh !== undefined) setBandpassHigh(req.bandpassHigh);
+    if (req.notchFreq !== undefined) setNotchFreq(req.notchFreq);
+    if (req.lowpassFreq !== undefined) setLowpassFreq(req.lowpassFreq);
+    if (req.highpassFreq !== undefined) setHighpassFreq(req.highpassFreq);
+    debouncedClean({
+      bandpass_low: req.bandpassLow ?? bandpassLow,
+      bandpass_high: req.bandpassHigh ?? bandpassHigh,
+      notch_freq: req.notchFreq ?? notchFreq,
+      lowpass_freq: req.lowpassFreq ?? lowpassFreq,
+      highpass_freq: req.highpassFreq ?? highpassFreq,
+    });
+  };
+
+  const downloadJSON = () => {
+    if (!activeData) return;
+    const blob = new Blob([JSON.stringify(activeData, null, 2)], { type: "application/json" });
+    triggerDownload(blob, `${stripExt(activeData.filename || "eeg_data")}.json`);
+  };
+  const downloadCSV = () => {
+    if (!activeData) return;
+    const preview = activeData.cleaned_data ?? activeData.preview ?? activeData.data;
+    if (!preview?.[0]) return;
+    const header = ["Channel", ...preview[0].map((_: any, i: number) => `S${i + 1}`)].join(",");
+    const rows = activeData.channel_names.map((name: string, idx: number) =>
+      [name, ...preview[idx]].join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    triggerDownload(new Blob([csv], { type: "text/csv" }), `${stripExt(activeData.filename || "eeg_data")}.csv`);
+  };
+
+  const recsCount = analysis ? recommend(analysis, currentFilterParams() as any).length : 0;
+  const SIDEBAR_ITEMS: SidebarItem[] = analysis
+    ? [
+        { id: "insights", label: "Insights", icon: IC.insights, group: "Analysis" },
+        { id: "quality", label: "Quality", icon: IC.quality, badge: `${analysis.quality.overall}`, group: "Analysis" },
+        { id: "bands", label: "Band power", icon: IC.bands, group: "Analysis" },
+        { id: "recommendations", label: "Recommendations", icon: IC.recs, badge: recsCount || undefined, group: "Automation" },
+        { id: "autoclean", label: "Auto-clean", icon: IC.autoclean, group: "Automation" },
+        { id: "ica", label: "Components (ICA)", icon: IC.ica, group: "Automation" },
+        { id: "templates", label: "Templates", icon: IC.tpl, group: "Automation" },
+        { id: "waveform", label: "Waveform", icon: IC.waveform, group: "Visualize" },
+        { id: "frequency", label: "Frequency", icon: IC.frequency, group: "Visualize" },
+        { id: "timefreq", label: "Spectrogram", icon: IC.spectro, group: "Visualize" },
+        { id: "topography", label: "Topography", icon: IC.topo, group: "Visualize" },
+        { id: "connectivity", label: "Connectivity", icon: IC.connect, group: "Visualize" },
+        { id: "sleep", label: "Sleep staging", icon: IC.sleep, group: "Specialized" },
+        { id: "compare", label: "Compare", icon: IC.compare, group: "Specialized" },
+        { id: "cohort", label: "Cohort QC", icon: IC.cohort, group: "Specialized" },
+        { id: "annotations", label: "Annotations", icon: IC.annot, badge: analysis.quality.artifactCount, group: "Inspect" },
+        { id: "assistant", label: "Assistant", icon: IC.assist, group: "AI" },
+        { id: "literature", label: "Literature", icon: IC.lit, group: "AI" },
+        { id: "methods", label: "Methods", icon: IC.methods, group: "AI" },
+        { id: "glossary", label: "Glossary", icon: IC.glossary, group: "Reference" },
+        { id: "report", label: "Report", icon: IC.report, group: "Export" },
+        { id: "bids", label: "BIDS export", icon: IC.bids, group: "Export" },
+      ]
+    : [];
+
+  const channelData = activeData?.cleaned_data ?? activeData?.preview ?? activeData?.data ?? [];
+  const summary = analysis
+    ? {
+        fileName: activeData.filename || "recording",
+        channels: activeData.channels,
+        channelNames: activeData.channel_names,
+        sampleRate: activeData.sampling_rate,
+        durationSec: activeData.duration_sec,
+        analysis,
+        filters: currentFilterParams(),
+      }
+    : null;
+
+  /* =====================================================
+     LANDING
+  ===================================================== */
+  if (!uploadResult) {
+    return (
+      <main className="mx-auto max-w-5xl px-5 sm:px-8">
+        {/* Hero */}
+        <section className="pt-16 pb-10 sm:pt-24 sm:pb-14 animate-fade-in">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            <div className="lg:col-span-7">
+              <div className="inline-flex items-center gap-2 chip mb-7">
+                <span className="h-1.5 w-1.5 rounded-full bg-[rgb(var(--accent))] pulse-soft" />
+                <span>v0.2 · 19 workspace views · BYO AI</span>
+              </div>
+              <h1 className="text-display-gradient text-balance font-medium tracking-[-0.04em] leading-[0.98] text-[clamp(2.75rem,6vw,5.5rem)]">
+                The EEG workspace, <span className="text-accent">re-thought</span>.
+              </h1>
+              <p className="text-[rgb(var(--text-soft))] max-w-xl mt-6 text-base sm:text-lg leading-relaxed">
+                Drop a recording, clean it intelligently, and tour your brainwaves through 19 analytical
+                views — frequency, topography, sleep, connectivity, components, AI-written reports. Local,
+                private, fast.
+              </p>
+
+              <div className="flex flex-wrap gap-2.5 mt-8">
+                <button onClick={() => inputRef.current?.click()} className="btn btn-primary">
+                  Upload a recording
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6"/>
+                  </svg>
+                </button>
+                <button onClick={() => loadSample(SAMPLES[0].build())} className="btn btn-secondary">
+                  Try a sample
+                </button>
+              </div>
+
+              {/* Inline trust stats */}
+              <div className="grid grid-cols-3 gap-6 mt-10 max-w-xl">
+                {[
+                  { value: "19", label: "workspace views" },
+                  { value: "9", label: "AI providers" },
+                  { value: "100%", label: "local-first" },
+                ].map((s) => (
+                  <div key={s.label}>
+                    <div className="num-display text-3xl sm:text-4xl">{s.value}</div>
+                    <div className="text-[11px] text-[rgb(var(--muted))] mt-1.5 uppercase tracking-wider">
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Decorative wave panel */}
+            <div className="lg:col-span-5">
+              <DecorativeWave />
+            </div>
           </div>
-          <nav className="flex gap-4">
-          
-            <button
-              onClick={() => window.location.href = '/docs'}
-              className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold px-3 py-1 rounded transition min-w-[110px]"
-            >
-              Docs
-            </button>
-            <button
-              onClick={() => window.location.href = '/about'}
-              className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold px-3 py-1 rounded transition min-w-[110px]"
-            >
-              About
-            </button>
-            <button
-              className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold px-3 py-1 rounded transition min-w-[110px]"
-              onClick={() => setShowHelp(prev => !prev)}
-            >
-              {showHelp ? "Hide Info / Help" : "Show Info / Help"}
-            </button>
-          </nav>
-        </div>
-      </header>
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-12 px-2 sm:py-20 sm:px-6 md:py-28 md:px-10 mx-auto sm:items-start">
-        <div className="w-full mb-8" />
-        {/* Upload Section */}
-        <section className="w-full max-w-md mb-8">
-          <div className={`p-6 border-2 border-dashed rounded-2xl shadow-lg bg-white/90 dark:bg-zinc-900/80 ${dragActive ? "border-blue-500 bg-blue-50" : "border-zinc-300"}`}
+        </section>
+
+        {/* Upload area */}
+        <section className="pb-12">
+          <div
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
+            className={`relative rounded-2xl border-2 border-dashed transition-all ${
+              dragActive
+                ? "border-[rgb(var(--accent))] bg-[rgb(var(--accent-bg))] scale-[1.005]"
+                : "border-[rgb(var(--border))] bg-[rgb(var(--surface))] hover:border-[rgb(var(--border-strong))]"
+            }`}
           >
             <input
               ref={inputRef}
               type="file"
-              accept=".edf,.csv,.mat"
+              accept={ACCEPTED}
               className="hidden"
               onChange={handleChange}
             />
-            <div className="flex flex-col items-center justify-center text-gray-600">
-              <h2 className="text-xl font-bold text-blue-700 mb-2">Upload EEG File</h2>
-              <p className="mb-4">Drag & drop EEG file here (.edf, .csv, .mat) or <button className="underline text-blue-600" onClick={() => inputRef.current?.click()}>browse</button></p>
-              {file && <p className="mb-2 font-semibold text-blue-700">Selected: {file.name}</p>}
-              <button
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded disabled:bg-blue-300 flex items-center justify-center min-w-[140px] font-semibold"
-                disabled={!file || uploading}
-                onClick={handleUpload}
-              >
-                {uploading ? (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="w-full px-6 py-10 sm:py-12 flex flex-col items-center text-center"
+            >
+              <div className="text-sm">
+                {file ? (
                   <>
-                    <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                    </svg>
-                    Uploading...
+                    <span className="font-medium">{file.name}</span>
+                    <span className="text-[rgb(var(--muted))]"> · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
                   </>
-                ) : "Upload & Parse"}
-              </button>
-              {error && (
-                <div className="mt-2 flex items-center gap-2 text-red-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" /></svg>
-                  <span>{error}</span>
-                </div>
-              )}
-              {uploadResult && !error && (
-                <div className="mt-2 flex items-center gap-2 text-green-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span>EEG file uploaded and parsed successfully!</span>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <span className="font-medium">Drop your EEG file here</span>
+                    <span className="text-[rgb(var(--muted))]">, or click to browse</span>
+                  </>
+                )}
+              </div>
+              <div className="text-xs text-[rgb(var(--muted))] mt-1.5">
+                EDF, BDF, CSV, MAT, JSON · processed locally
+              </div>
+            </button>
+            {uploading && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden rounded-b-xl">
+                <div className="h-full animate-shimmer" />
+              </div>
+            )}
           </div>
+
+          {file && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button disabled={!file || uploading} onClick={handleUpload} className="btn btn-primary">
+                {uploading ? <><Spinner /> Processing…</> : "Upload & analyze"}
+              </button>
+              <button onClick={() => setFile(null)} className="btn btn-ghost">Clear</button>
+            </div>
+          )}
+          {error && (
+            <div className="mt-3">
+              <Banner tone="danger" onClose={() => setError(null)}>{error}</Banner>
+            </div>
+          )}
         </section>
-        {/* Context Panel Section - only show once */}
-        <section className="w-full max-w-md mb-8">
-          <div className="bg-white/80 dark:bg-zinc-900/80 rounded-2xl p-6 shadow flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-blue-700 mb-2">EEG Context Panel</h2>
-            <div className="flex flex-wrap gap-6 items-center">
+
+        {/* Context + Samples grid */}
+        <section className="pb-16 grid gap-6 sm:grid-cols-2">
+          <div className="surface rounded-xl p-5">
+            <SectionHeader
+              eyebrow="Context"
+              title="Recording type"
+              subtitle="Sets sensible filter defaults."
+            />
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold mb-1">EEG Use Case</label>
-                <select value={eegUseCase} onChange={e => setEegUseCase(e.target.value as EEGUseCase)} className="rounded-lg px-3 py-1 border border-blue-200 bg-blue-50 text-blue-900 font-semibold">
-                  <option>Resting-state EEG</option>
-                  <option>Cognitive / task-based EEG</option>
-                  <option>Sleep / overnight EEG</option>
-                  <option>BCI / neurofeedback</option>
-                  <option>Low-cost device</option>
+                <label className="text-[11px] text-[rgb(var(--muted))] block mb-1.5">Use case</label>
+                <select
+                  value={eegUseCase}
+                  onChange={(e) => setEegUseCase(e.target.value as EEGUseCase)}
+                  className="input select"
+                >
+                  {Object.keys(PRESETS).map((k) => <option key={k}>{k}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">Population / Age Group</label>
-                <select value={eegAgeGroup} onChange={e => setEegAgeGroup(e.target.value)} className="rounded-lg px-3 py-1 border border-purple-200 bg-purple-50 text-purple-900 font-semibold">
-                  <option>Healthy adults</option>
-                  <option>Children / adolescents</option>
-                  <option>Clinical patients</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">EEG Device Type</label>
-                <select value={eegDeviceType} onChange={e => setEegDeviceType(e.target.value)} className="rounded-lg px-3 py-1 border border-pink-200 bg-pink-50 text-pink-900 font-semibold">
+                <label className="text-[11px] text-[rgb(var(--muted))] block mb-1.5">Device</label>
+                <select
+                  value={eegDeviceType}
+                  onChange={(e) => setEegDeviceType(e.target.value)}
+                  className="input select"
+                >
                   <option>Research-grade system</option>
                   <option>Consumer / low-cost device</option>
                 </select>
               </div>
+              <div className="text-xs text-[rgb(var(--muted))]">
+                Notch defaults to <span className="mono">{deviceNotch} Hz</span>.
+              </div>
             </div>
-            <div className="text-xs text-zinc-500 mt-2">
-              <b>Tip:</b> Context presets will auto-fill recommended filter values below. You can override them for custom analysis.
+          </div>
+
+          <div className="surface rounded-xl p-5">
+            <SectionHeader
+              eyebrow="Or try"
+              title="Synthetic recordings"
+              subtitle="One click to explore the full workspace."
+            />
+            <div className="divide-y -mx-2">
+              {SAMPLES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => loadSample(s.build())}
+                  className="group w-full text-left px-2 py-2.5 flex items-center justify-between gap-3 text-sm hover:bg-[rgb(var(--surface-2))] rounded-md transition"
+                >
+                  <span>{s.title}</span>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="h-3 w-3 text-[rgb(var(--subtle))] group-hover:text-[rgb(var(--accent))] group-hover:translate-x-0.5 transition-all"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              ))}
             </div>
           </div>
         </section>
-        {/* Info / Help Section */}
-        <div className="w-full mb-6">
-          {showHelp && (
-            <div className="bg-blue-50 dark:bg-zinc-900/80 rounded-2xl p-4 shadow flex flex-col gap-2">
-              <div className="mt-2 text-xs text-zinc-700 dark:text-zinc-200 bg-white/80 rounded-xl p-3 border border-blue-200 shadow">
-                <b>EEG Filter Recommendations:</b>
-                <table className="w-full text-xs mt-2 mb-2 border-collapse">
-                  <thead>
-                    <tr className="bg-blue-100">
-                      <th className="px-2 py-1 border">Filter Type</th>
-                      <th className="px-2 py-1 border">Default Value</th>
-                      <th className="px-2 py-1 border">Valid Range</th>
-                      <th className="px-2 py-1 border">Rationale</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="px-2 py-1 border">High-pass</td>
-                      <td className="px-2 py-1 border">0.5 Hz</td>
-                      <td className="px-2 py-1 border">0.1–1 Hz</td>
-                      <td className="px-2 py-1 border">Removes slow baseline drift, preserves delta (&lt;4 Hz)</td>
-                    </tr>
-                    <tr>
-                      <td className="px-2 py-1 border">Low-pass</td>
-                      <td className="px-2 py-1 border">45 Hz</td>
-                      <td className="px-2 py-1 border">30–70 Hz</td>
-                      <td className="px-2 py-1 border">Removes high-frequency noise, keeps delta–beta bands</td>
-                    </tr>
-                    <tr>
-                      <td className="px-2 py-1 border">Band-pass</td>
-                      <td className="px-2 py-1 border">1–45 Hz</td>
-                      <td className="px-2 py-1 border">1–50 Hz</td>
-                      <td className="px-2 py-1 border">Standard EEG frequency range</td>
-                    </tr>
-                    <tr>
-                      <td className="px-2 py-1 border">Notch</td>
-                      <td className="px-2 py-1 border">50 Hz</td>
-                      <td className="px-2 py-1 border">50/60 Hz</td>
-                      <td className="px-2 py-1 border">Removes line power noise (region-specific)</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <ul className="list-disc pl-5">
-                  <li>High-pass: Use lower values to preserve delta activity.</li>
-                  <li>Low-pass: 45 Hz is safe; increase for gamma research.</li>
-                  <li>Band-pass: 1–45 Hz is standard for most labs.</li>
-                  <li>Notch: 50 Hz (India/Europe), 60 Hz (USA); use harmonics if needed.</li>
-                </ul>
+
+        {/* Bento features */}
+        <section className="pb-20">
+          <div className="mb-10 max-w-2xl">
+            <div className="eyebrow mb-3">What's inside</div>
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.025em] leading-[1.1]">
+              Every analytical view a researcher needs — and{" "}
+              <span className="text-accent">nothing they don't</span>.
+            </h2>
+          </div>
+
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-6">
+            {/* Big card — AI assistant */}
+            <div className="surface bento rounded-2xl p-6 sm:col-span-4 sm:row-span-2 flex flex-col">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="chip-accent chip">AI</span>
+                <span className="eyebrow">Assistant</span>
+              </div>
+              <h3 className="text-2xl font-medium tracking-tight mb-2">
+                Talk to your recording. Get answers grounded in real numbers.
+              </h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed flex-1">
+                Bring your own LLM — Groq, Gemini, Claude, GPT-4, or self-hosted Ollama. The assistant reads
+                your live DSP analysis and can update the filter pipeline from plain English: <em>"clean for
+                sleep, notch 60"</em>.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-1.5">
+                {["Groq", "Gemini", "OpenRouter", "Mistral", "Ollama", "Claude", "GPT-4"].map((p) => (
+                  <span key={p} className="chip">{p}</span>
+                ))}
               </div>
             </div>
-          )}
-        </div>
-        {/* EEG Context Panel - removed duplicate rendering */}
-        {uploadResult && (
-          <>
-            {/* Filter Controls & Raw/Cleaned Toggle */}
-            <div className="w-full mb-4">
-              <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-2xl p-6 shadow flex flex-col gap-4">
-                <div className="flex flex-wrap gap-4 items-center justify-between mb-2">
-                  <label className="flex items-center gap-2 cursor-pointer select-none text-blue-700">
-                    <input type="checkbox" checked={showCleaned} onChange={e => setShowCleaned(e.target.checked)} className="accent-pink-500 scale-125" />
-                    <span className="font-semibold text-base flex items-center gap-1">
-                      <svg className="h-5 w-5 text-pink-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      Show Cleaned
-                    </span>
-                  </label>
-                  <span className="text-xs text-zinc-600 bg-white/70 px-2 py-1 rounded shadow-sm">Toggle to compare <b>raw</b> and <b>cleaned</b> EEG</span>
-                </div>
-                <div className="flex flex-row flex-wrap gap-4 items-end justify-between w-full">
-                  <div className="flex flex-col items-start bg-blue-50 rounded-xl px-3 py-2 shadow border border-blue-200">
-                    <label className="block text-xs font-bold mb-1 text-blue-700">Bandpass Low (Hz)</label>
-                    <input type="number" min={0} max={bandpassHigh-1} value={bandpassLow} onChange={e => { setBandpassLow(Number(e.target.value)); handleFilterChange({ bandpass_low: Number(e.target.value), bandpass_high: bandpassHigh, notch_freq: notchFreq, lowpass_freq: lowpassFreq, highpass_freq: highpassFreq }); }} className="rounded-full px-3 py-1 w-24 focus:ring-2 focus:ring-blue-400 bg-white border-2 border-blue-200 text-blue-900 font-semibold transition" />
-                  </div>
-                  <div className="flex flex-col items-start bg-purple-50 rounded-xl px-3 py-2 shadow border border-purple-200">
-                    <label className="block text-xs font-bold mb-1 text-purple-700">Bandpass High (Hz)</label>
-                    <input type="number" min={bandpassLow+1} max={200} value={bandpassHigh} onChange={e => { setBandpassHigh(Number(e.target.value)); handleFilterChange({ bandpass_low: bandpassLow, bandpass_high: Number(e.target.value), notch_freq: notchFreq, lowpass_freq: lowpassFreq, highpass_freq: highpassFreq }); }} className="rounded-full px-3 py-1 w-24 focus:ring-2 focus:ring-purple-400 bg-white border-2 border-purple-200 text-purple-900 font-semibold transition" />
-                  </div>
-                  <div className="flex flex-col items-start bg-pink-50 rounded-xl px-3 py-2 shadow border border-pink-200">
-                    <label className="block text-xs font-bold mb-1 text-pink-700">Notch Freq (Hz)</label>
-                    <input type="number" min={40} max={70} value={notchFreq} onChange={e => { setNotchFreq(Number(e.target.value)); handleFilterChange({ bandpass_low: bandpassLow, bandpass_high: bandpassHigh, notch_freq: Number(e.target.value), lowpass_freq: lowpassFreq, highpass_freq: highpassFreq }); }} className="rounded-full px-3 py-1 w-24 focus:ring-2 focus:ring-pink-400 bg-white border-2 border-pink-200 text-pink-900 font-semibold transition" />
-                  </div>
-                  <div className="flex flex-col items-start bg-green-50 rounded-xl px-3 py-2 shadow border border-green-200">
-                    <label className="block text-xs font-bold mb-1 text-green-700">Lowpass (Hz)</label>
-                    <input type="number" min={1} max={200} value={lowpassFreq ?? ''} onChange={e => { const v = e.target.value ? Number(e.target.value) : null; setLowpassFreq(v); handleFilterChange({ bandpass_low: bandpassLow, bandpass_high: bandpassHigh, notch_freq: notchFreq, lowpass_freq: v, highpass_freq: highpassFreq }); }} className="rounded-full px-3 py-1 w-24 focus:ring-2 focus:ring-green-400 bg-white border-2 border-green-200 text-green-900 font-semibold transition" placeholder="(none)" />
-                  </div>
-                  <div className="flex flex-col items-start bg-orange-50 rounded-xl px-3 py-2 shadow border border-orange-200">
-                    <label className="block text-xs font-bold mb-1 text-orange-700">Highpass (Hz)</label>
-                    <input type="number" min={1} max={200} value={highpassFreq ?? ''} onChange={e => { const v = e.target.value ? Number(e.target.value) : null; setHighpassFreq(v); handleFilterChange({ bandpass_low: bandpassLow, bandpass_high: bandpassHigh, notch_freq: notchFreq, lowpass_freq: lowpassFreq, highpass_freq: v }); }} className="rounded-full px-3 py-1 w-24 focus:ring-2 focus:ring-orange-400 bg-white border-2 border-orange-200 text-orange-900 font-semibold transition" placeholder="(none)" />
-                  </div>
-                  <div className="flex flex-col items-center justify-center min-w-[90px]">
-                    {cleaning && <span className="text-blue-600 flex items-center gap-1"><svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> Cleaning...</span>}
-                  </div>
-                </div>
+
+            {/* Quality score */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Quality score</div>
+              <div className="num-display text-5xl">
+                0<span className="text-[rgb(var(--muted))]">–</span>100
               </div>
+              <p className="text-sm text-[rgb(var(--muted))] mt-3 leading-relaxed">
+                Composite of clean-sample %, channel health, alpha signature, and line-noise. Drill into
+                each component.
+              </p>
             </div>
-            <div className="flex flex-row gap-6 mb-6 justify-center items-center w-full">
-              <button
-                className="px-5 py-2 flex items-center gap-2 bg-gradient-to-r from-green-400 to-green-600 text-white rounded-full shadow-lg hover:from-green-500 hover:to-green-700 transition font-semibold text-base drop-shadow-md focus:outline-none focus:ring-2 focus:ring-green-400"
-                onClick={() => {
-                  const blob = new Blob([JSON.stringify(uploadResult, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = (uploadResult.filename || 'eeg_data') + '.json';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Download JSON
-              </button>
-              <button
-                className="px-5 py-2 flex items-center gap-2 bg-gradient-to-r from-blue-400 to-blue-600 text-white rounded-full shadow-lg hover:from-blue-500 hover:to-blue-700 transition font-semibold text-base drop-shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                onClick={() => {
-                  // Convert preview data to CSV
-                  const header = ['Channel', ...uploadResult.preview[0].map((_: any, i: number) => `Sample${i+1}`)].join(',');
-                  const rows = uploadResult.channel_names.map((name: string, idx: number) => [name, ...uploadResult.preview[idx]].join(','));
-                  const csv = [header, ...rows].join('\n');
-                  const blob = new Blob([csv], { type: 'text/csv' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = (uploadResult.filename || 'eeg_data') + '.csv';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Download CSV
-              </button>
+
+            {/* Cognitive state */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Cognitive state</div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {["focused", "relaxed", "drowsy", "alert", "meditative", "stressed"].map((s) => (
+                  <span key={s} className="chip capitalize">{s}</span>
+                ))}
+              </div>
+              <p className="text-sm text-[rgb(var(--muted))] mt-3 leading-relaxed">
+                6-class heuristic classifier based on band ratios. Confidence-scored, never overconfident.
+              </p>
             </div>
-            <EEGVisualization
-              eegData={showCleaned && cleanedResult ? { ...cleanedResult, preview: cleanedResult.cleaned_data } : uploadResult}
+
+            {/* Topography */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Topography</div>
+              <div className="flex items-center justify-center my-2">
+                <svg viewBox="0 0 60 60" className="h-16 w-16">
+                  <defs>
+                    <radialGradient id="topo-grad">
+                      <stop offset="0" stopColor="rgb(var(--accent))" stopOpacity="0.7" />
+                      <stop offset="0.5" stopColor="rgb(var(--accent))" stopOpacity="0.3" />
+                      <stop offset="1" stopColor="rgb(var(--accent))" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
+                  <circle cx="30" cy="30" r="22" fill="url(#topo-grad)" />
+                  <circle cx="30" cy="30" r="24" fill="none" stroke="rgb(var(--border-strong))" strokeWidth="1" />
+                  {[
+                    [30, 12], [18, 22], [42, 22], [12, 36], [48, 36], [30, 48],
+                  ].map(([x, y], i) => (
+                    <circle key={i} cx={x} cy={y} r="1.5" fill="rgb(var(--text))" />
+                  ))}
+                </svg>
+              </div>
+              <p className="text-sm text-[rgb(var(--muted))] text-center leading-relaxed">
+                10-20 scalp projection per band.
+              </p>
+            </div>
+
+            {/* Auto-clean */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-3">
+              <div className="eyebrow mb-1.5">Automation</div>
+              <h3 className="font-medium text-base mb-1">One-click auto-clean</h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed">
+                Detects mains noise (50 / 60 Hz), flags bad channels by variance / kurtosis, picks
+                paradigm-appropriate filters. Shows the rationale; you click Apply.
+              </p>
+            </div>
+
+            {/* Reproducibility */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-3">
+              <div className="eyebrow mb-1.5">Reproducibility</div>
+              <h3 className="font-medium text-base mb-1">Manifest + runnable code</h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed">
+                Every analysis exports a signed JSON manifest plus AI-written MNE-Python / EEGLAB /
+                FieldTrip scripts. Replay byte-for-byte.
+              </p>
+            </div>
+
+            {/* BIDS */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Standards</div>
+              <h3 className="font-medium text-base mb-1">BIDS-EEG export</h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed">
+                One click → a BIDS-compatible bundle ready for OpenNeuro.
+              </p>
+            </div>
+
+            {/* Cohort */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Faculty workflow</div>
+              <h3 className="font-medium text-base mb-1">Cohort QC</h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed">
+                Batch-load recordings; subjects ranked by anomaly score.
+              </p>
+            </div>
+
+            {/* Sleep */}
+            <div className="surface bento rounded-2xl p-5 sm:col-span-2">
+              <div className="eyebrow mb-1.5">Specialized</div>
+              <h3 className="font-medium text-base mb-1">Sleep staging</h3>
+              <p className="text-sm text-[rgb(var(--muted))] leading-relaxed">
+                30s-epoch hypnogram with spindle &amp; K-complex detection.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* History */}
+        {history.length > 0 && (
+          <section className="pb-20">
+            <SectionHeader
+              eyebrow="Recent"
+              title="Session history"
+              subtitle="Lightweight summaries — stored locally only."
             />
-            <div className="mt-8 w-full max-w-md bg-zinc-50 p-6 rounded shadow text-gray-800">
-              <h2 className="text-xl font-semibold mb-4">Parsed EEG Metadata</h2>
-              <pre className="text-sm bg-zinc-100 p-2 rounded overflow-x-auto">
-                {JSON.stringify(showCleaned && cleanedResult ? cleanedResult : uploadResult, null, 2)}
-              </pre>
+            <div className="divide-y border rounded-xl bg-[rgb(var(--surface))] overflow-hidden">
+              {history.slice(0, 6).map((h) => (
+                <div key={h.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{h.fileName}</div>
+                    <div className="text-xs text-[rgb(var(--muted))] mt-0.5">
+                      <span className="mono">{h.channels}ch · {h.sampleRate}Hz · {h.duration?.toFixed?.(1) ?? h.duration}s</span>
+                      {h.cognitiveState && <span> · <span className="capitalize">{h.cognitiveState}</span></span>}
+                    </div>
+                  </div>
+                  {h.qualityScore !== undefined && (
+                    <span className="text-xs mono text-[rgb(var(--muted))]">{h.qualityScore}/100</span>
+                  )}
+                </div>
+              ))}
             </div>
-          </>
+          </section>
         )}
       </main>
-    </div>
+    );
+  }
+
+  /* =====================================================
+     WORKSPACE
+  ===================================================== */
+  return (
+    <main className="mx-auto max-w-7xl px-5 sm:px-8 pt-6 pb-16">
+      {/* Recording bar */}
+      <div className="rounded-2xl border bg-[rgb(var(--surface))] p-3.5 sm:p-4 mb-5 flex flex-wrap items-center gap-3 shadow-[var(--shadow-sm)]">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <span className="relative flex h-2 w-2">
+            {analyzing && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-60 animate-ping" />
+            )}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${analyzing ? "bg-amber-500" : "bg-emerald-500"}`} />
+          </span>
+          <div className="min-w-0">
+            <div className="font-medium text-sm truncate">{activeData.filename || "recording"}</div>
+            <div className="text-xs text-[rgb(var(--muted))] mono">
+              {activeData.channels} ch · {activeData.sampling_rate} Hz · {activeData.duration_sec.toFixed(1)}s
+              {activeData.is_synthetic ? <> · <span className="chip-accent chip !py-0 !text-[10px]">synthetic</span></> : null}
+              {analyzing ? <> · <span className="text-amber-600 dark:text-amber-400">analyzing…</span></> : null}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Segmented
+            value={showCleaned ? "cleaned" : "raw"}
+            onChange={(v) => setShowCleaned(v === "cleaned")}
+            options={[{ id: "raw", label: "Raw" }, { id: "cleaned", label: "Cleaned" }]}
+          />
+          <div className="inline-flex rounded-md border bg-[rgb(var(--surface))]">
+            <button onClick={downloadCSV} className="px-3 py-1.5 text-xs font-medium hover:bg-[rgb(var(--surface-2))] rounded-l-md transition">
+              ↓ CSV
+            </button>
+            <span className="w-px bg-[rgb(var(--border))]" />
+            <button onClick={downloadJSON} className="px-3 py-1.5 text-xs font-medium hover:bg-[rgb(var(--surface-2))] rounded-r-md transition">
+              ↓ JSON
+            </button>
+          </div>
+          <button
+            onClick={() => { setUploadResult(null); setCleanedResult(null); setFile(null); setActiveTab("insights"); }}
+            className="btn btn-secondary text-xs"
+            title="Load a different recording"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New recording
+          </button>
+        </div>
+      </div>
+
+      {/* Filter strip */}
+      <div className="rounded-xl border bg-[rgb(var(--surface))] p-4 mb-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="eyebrow shrink-0 mr-1">Filters</div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1 min-w-0">
+            <FilterField label="BP low" value={bandpassLow} min={0} max={bandpassHigh - 1}
+              onChange={(v) => { const n = v ?? 0; setBandpassLow(n); debouncedClean({ bandpass_low: n }); }} />
+            <FilterField label="BP high" value={bandpassHigh} min={bandpassLow + 1} max={200}
+              onChange={(v) => { const n = v ?? 0; setBandpassHigh(n); debouncedClean({ bandpass_high: n }); }} />
+            <FilterField label="Notch" value={notchFreq} min={40} max={70}
+              onChange={(v) => { const n = v ?? 50; setNotchFreq(n); debouncedClean({ notch_freq: n }); }} />
+            <FilterField label="LP" value={lowpassFreq} placeholder="—"
+              onChange={(v) => { setLowpassFreq(v); debouncedClean({ lowpass_freq: v }); }} />
+            <FilterField label="HP" value={highpassFreq} placeholder="—"
+              onChange={(v) => { setHighpassFreq(v); debouncedClean({ highpass_freq: v }); }} />
+          </div>
+          {cleaning && (
+            <span className="text-xs text-[rgb(var(--muted))] inline-flex items-center gap-1.5 shrink-0">
+              <Spinner /> updating
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Stat strip */}
+      {analysis && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <Stat
+            label="Channels"
+            value={<span className="mono">{activeData.channels}</span>}
+          />
+          <Stat
+            label="State"
+            value={<span className="capitalize">{analysis.cognitive.state}</span>}
+            hint={`${(analysis.cognitive.confidence * 100).toFixed(0)}% confidence`}
+          />
+          <Stat
+            label="Dominant"
+            value={<span className="capitalize">{analysis.dominantBand}</span>}
+            hint={`${((analysis.avgBands[analysis.dominantBand] / (analysis.avgBands.total || 1)) * 100).toFixed(0)}% of spectrum`}
+          />
+          <Stat
+            label="Quality"
+            value={<span className="mono">{analysis.quality.overall}/100</span>}
+            hint={analysis.quality.badChannels.length ? `${analysis.quality.badChannels.length} bad channel(s)` : "all channels clean"}
+          />
+        </div>
+      )}
+
+      {/* Sidebar + Content */}
+      {analysis && (
+        <div className="flex flex-col lg:flex-row gap-6">
+          <WorkspaceSidebar items={SIDEBAR_ITEMS} active={activeTab} onChange={setActiveTab} />
+
+          <div className="flex-1 min-w-0 animate-fade-up">
+            {activeTab === "insights" && <AIInsights analysis={analysis} />}
+            {activeTab === "waveform" && <EEGVisualization eegData={activeData} />}
+            {activeTab === "frequency" && <Card><PSDView data={channelData} channelNames={activeData.channel_names} sampleRate={activeData.sampling_rate} /></Card>}
+            {activeTab === "timefreq" && <Card><SpectrogramView data={channelData} channelNames={activeData.channel_names} sampleRate={activeData.sampling_rate} /></Card>}
+            {activeTab === "topography" && <Card><TopographyView data={channelData} channelNames={activeData.channel_names} sampleRate={activeData.sampling_rate} /></Card>}
+            {activeTab === "bands" && <Card><BandPowerView data={channelData} channelNames={activeData.channel_names} sampleRate={activeData.sampling_rate} /></Card>}
+            {activeTab === "quality" && <QualityDashboard analysis={analysis} channelNames={activeData.channel_names} />}
+            {activeTab === "annotations" && (
+              <AnnotationsView
+                data={channelData}
+                channelNames={activeData.channel_names}
+                sampleRate={activeData.sampling_rate}
+                duration={activeData.duration_sec}
+              />
+            )}
+            {activeTab === "assistant" && (
+              <AIAssistant context={assistantContext} onApplyPipeline={onApplyPipeline} onOpenSettings={() => setAiSettingsOpen(true)} />
+            )}
+            {activeTab === "recommendations" && analysis && (
+              <RecommendationsPanel
+                recommendations={recommend(analysis, currentFilterParams() as any)}
+                onApply={(r) => {
+                  if (!r.apply) return;
+                  if (r.apply.bandpass_low !== undefined) setBandpassLow(r.apply.bandpass_low);
+                  if (r.apply.bandpass_high !== undefined) setBandpassHigh(r.apply.bandpass_high);
+                  if (r.apply.notch_freq !== undefined) setNotchFreq(r.apply.notch_freq);
+                  if (r.apply.highpass_freq !== undefined) setHighpassFreq(r.apply.highpass_freq);
+                  if (r.apply.lowpass_freq !== undefined) setLowpassFreq(r.apply.lowpass_freq);
+                  const { exclude_channels: _x, ...filterPatch } = r.apply;
+                  debouncedClean(filterPatch);
+                }}
+              />
+            )}
+            {activeTab === "autoclean" && (
+              <AutoCleanPanel
+                data={channelData}
+                channelNames={activeData.channel_names}
+                sampleRate={activeData.sampling_rate}
+                useCase={eegUseCase}
+                onApply={(recipe: AutoCleanRecipe) => {
+                  setBandpassLow(recipe.bandpass_low);
+                  setBandpassHigh(recipe.bandpass_high);
+                  setNotchFreq(recipe.notch_freq);
+                  setHighpassFreq(recipe.highpass_freq);
+                  setLowpassFreq(recipe.lowpass_freq);
+                  debouncedClean({
+                    bandpass_low: recipe.bandpass_low,
+                    bandpass_high: recipe.bandpass_high,
+                    notch_freq: recipe.notch_freq,
+                    highpass_freq: recipe.highpass_freq,
+                    lowpass_freq: recipe.lowpass_freq,
+                  });
+                }}
+              />
+            )}
+            {activeTab === "templates" && (
+              <PipelineTemplates
+                current={currentFilterParams() as any}
+                currentUseCase={eegUseCase}
+                onApply={(t: PipelineTemplate) => {
+                  setBandpassLow(t.filters.bandpass_low);
+                  setBandpassHigh(t.filters.bandpass_high);
+                  setNotchFreq(t.filters.notch_freq);
+                  setHighpassFreq(t.filters.highpass_freq);
+                  setLowpassFreq(t.filters.lowpass_freq);
+                  debouncedClean({ ...t.filters });
+                }}
+              />
+            )}
+            {activeTab === "connectivity" && (
+              <Card>
+                <ConnectivityView
+                  data={channelData}
+                  channelNames={activeData.channel_names}
+                  sampleRate={activeData.sampling_rate}
+                />
+              </Card>
+            )}
+            {activeTab === "sleep" && (
+              <Card>
+                <SleepStagingView
+                  data={channelData}
+                  channelNames={activeData.channel_names}
+                  sampleRate={activeData.sampling_rate}
+                />
+              </Card>
+            )}
+            {activeTab === "compare" && analysis && (
+              <ComparisonView primary={activeData} primaryAnalysis={analysis} />
+            )}
+            {activeTab === "cohort" && <CohortView />}
+            {activeTab === "ica" && (
+              <Card>
+                <ICAView
+                  data={channelData}
+                  channelNames={activeData.channel_names}
+                  sampleRate={activeData.sampling_rate}
+                />
+              </Card>
+            )}
+            {activeTab === "bids" && analysis && summary && (
+              <BIDSExport
+                data={{
+                  fileName: summary.fileName,
+                  channels: summary.channels,
+                  channelNames: summary.channelNames,
+                  sampleRate: summary.sampleRate,
+                  duration: summary.durationSec,
+                  cleanedData: channelData,
+                  filters: summary.filters,
+                  analysis: summary.analysis,
+                }}
+              />
+            )}
+            {activeTab === "glossary" && <GlossaryView />}
+            {activeTab === "literature" && analysis && (
+              <LiteratureSearch
+                analysis={analysis}
+                fileName={activeData.filename || "recording"}
+                onOpenSettings={() => setAiSettingsOpen(true)}
+              />
+            )}
+            {activeTab === "methods" && analysis && summary && (
+              <MethodsWriteup
+                fileName={summary.fileName}
+                channels={summary.channels}
+                channelNames={summary.channelNames}
+                sampleRate={summary.sampleRate}
+                duration={summary.durationSec}
+                filters={summary.filters}
+                analysis={summary.analysis}
+                onOpenSettings={() => setAiSettingsOpen(true)}
+              />
+            )}
+            {activeTab === "report" && summary && (
+              <div className="space-y-5">
+                <ReportPanel
+                  fileName={summary.fileName}
+                  channels={summary.channels}
+                  channelNames={summary.channelNames}
+                  sampleRate={summary.sampleRate}
+                  duration={summary.durationSec}
+                  filters={summary.filters}
+                  analysis={summary.analysis}
+                />
+                <AIProseReport summary={summary} onOpenSettings={() => setAiSettingsOpen(true)} />
+                <AICodeGen summary={summary} onOpenSettings={() => setAiSettingsOpen(true)} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <AISettingsModal open={aiSettingsOpen} onClose={() => setAiSettingsOpen(false)} />
+    </main>
   );
+}
+
+function stripExt(name: string) {
+  return name.replace(/\.[^.]+$/, "");
+}
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
