@@ -9,11 +9,18 @@ interface Props {
   onExcludeChannels?: (channels: string[]) => void;
 }
 
-const SEVERITY: Record<string, { dot: string; border: string }> = {
-  good: { dot: "bg-emerald-500", border: "border-l-emerald-500" },
-  info: { dot: "bg-[rgb(var(--accent))]", border: "border-l-[rgb(var(--accent))]" },
-  warn: { dot: "bg-amber-500", border: "border-l-amber-500" },
-  danger: { dot: "bg-red-500", border: "border-l-red-500" },
+const SEVERITY_CHIP: Record<string, string> = {
+  good: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  info: "bg-[rgb(var(--accent-bg))] text-[rgb(var(--accent-fg))] border-[rgb(var(--accent))]/30",
+  warn: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  danger: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
+};
+
+const SEVERITY_LABEL: Record<string, string> = {
+  good: "ok",
+  info: "info",
+  warn: "warn",
+  danger: "alert",
 };
 
 export default function RecommendationsPanel({ recommendations, onApply }: Props) {
@@ -22,34 +29,35 @@ export default function RecommendationsPanel({ recommendations, onApply }: Props
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="eyebrow">Recommendations</div>
+        <h3 className="eyebrow">Recommendations</h3>
         <div className="text-xs text-[rgb(var(--muted))]">{recommendations.length} suggestion(s)</div>
       </div>
       <div className="space-y-2">
-        {recommendations.map((r) => {
-          const s = SEVERITY[r.severity];
-          return (
-            <div
-              key={r.id}
-              className={`rounded-lg border border-l-4 ${s.border} bg-[rgb(var(--surface))] p-4 animate-fade-up`}
-            >
-              <div className="flex items-start gap-3">
-                <span className={`mt-1.5 h-1.5 w-1.5 rounded-full ${s.dot} shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{r.title}</div>
-                  <div className="text-xs text-[rgb(var(--muted))] mt-1 leading-relaxed">{r.body}</div>
-                  {r.apply && (
-                    <div className="mt-2.5">
-                      <button onClick={() => onApply(r)} className="btn btn-secondary text-xs">
-                        {r.applyLabel ?? "Apply"}
-                      </button>
-                    </div>
-                  )}
-                </div>
+        {recommendations.map((r) => (
+          <div
+            key={r.id}
+            className="rounded-lg border bg-[rgb(var(--surface))] p-4 animate-fade-up"
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={`shrink-0 mt-0.5 inline-flex items-center text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded border ${SEVERITY_CHIP[r.severity]}`}
+              >
+                {SEVERITY_LABEL[r.severity]}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{r.title}</div>
+                <div className="text-xs text-[rgb(var(--muted))] mt-1 leading-relaxed">{r.body}</div>
+                {r.apply && (
+                  <div className="mt-2.5">
+                    <button onClick={() => onApply(r)} className="btn btn-secondary text-xs">
+                      {r.applyLabel ?? "Apply"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

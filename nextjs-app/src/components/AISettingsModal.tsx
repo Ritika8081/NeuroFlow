@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { PROVIDERS, ProviderDef, ProviderId } from "../lib/ai-providers";
 import { testConnection } from "../lib/ai-client";
 import { useAI } from "./AIProvider";
@@ -17,12 +17,57 @@ const TIER_COLORS: Record<string, string> = {
   local: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30",
 };
 
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function AISettingsModal({ open, onClose }: Props) {
   const { config, setActiveProvider, updateProvider } = useAI();
   const [selected, setSelected] = useState<ProviderId | "local" | null>(config.activeProvider);
   const [testing, setTesting] = useState<ProviderId | "local" | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string; ms?: number }>>({});
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+    firstFocusable?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusables = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.hasAttribute("aria-hidden")
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = originalOverflow;
+      previousFocusRef.current?.focus();
+    };
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -40,17 +85,25 @@ export default function AISettingsModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-up">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-4xl max-h-[90vh] glass-strong rounded-2xl shadow-2xl flex flex-col">
+      <div
+        className="absolute inset-0 bg-[rgb(var(--bg-deep))]/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative w-full max-w-4xl max-h-[90vh] surface-elevated rounded-2xl flex flex-col"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b flex items-center justify-between">
           <div>
-            <div className="eyebrow">
-              Settings
-            </div>
-            <div className="text-lg font-semibold">AI providers · bring your own key</div>
+            <div className="eyebrow">Settings</div>
+            <h2 id={titleId} className="text-lg font-semibold">AI providers · bring your own key</h2>
           </div>
-          <button onClick={onClose} className="btn btn-ghost" aria-label="Close">
+          <button onClick={onClose} className="btn btn-ghost" aria-label="Close settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
               <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
             </svg>
@@ -160,6 +213,10 @@ function ProviderCard({
   onActivate: () => void;
 }) {
   const [expanded, setExpanded] = useState(isActive || currentKey.length > 0);
+  const idBase = useId();
+  const keyId = `${idBase}-key`;
+  const baseUrlId = `${idBase}-baseurl`;
+  const modelId = `${idBase}-model`;
 
   return (
     <div
@@ -169,6 +226,7 @@ function ProviderCard({
     >
       <button
         onClick={() => setExpanded((p) => !p)}
+        aria-expanded={expanded}
         className="w-full px-4 py-3 flex items-start justify-between text-left"
       >
         <div className="flex-1">
@@ -205,17 +263,18 @@ function ProviderCard({
         <div className="px-4 pb-4 space-y-3 border-t pt-3">
           {provider.pricing !== "local" && (
             <div>
-              <label className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
+              <label htmlFor={keyId} className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
                 API key
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <input
+                    id={keyId}
                     type={showKey ? "text" : "password"}
                     value={currentKey}
                     onChange={(e) => onChangeKey(e.target.value)}
                     placeholder={provider.keyHint || "your API key"}
-                    className="input pr-9 font-mono text-sm"
+                    className="input pr-9 mono text-sm"
                     autoComplete="off"
                   />
                   <button
@@ -252,14 +311,15 @@ function ProviderCard({
 
           {!provider.fixedBaseUrl && (
             <div>
-              <label className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
+              <label htmlFor={baseUrlId} className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
                 Base URL
               </label>
               <input
+                id={baseUrlId}
                 value={currentBaseUrl}
                 onChange={(e) => onChangeBaseUrl(e.target.value)}
                 placeholder={provider.baseUrl}
-                className="input font-mono text-sm"
+                className="input mono text-sm"
               />
               {provider.browserNote && (
                 <div className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">{provider.browserNote}</div>
@@ -268,10 +328,11 @@ function ProviderCard({
           )}
 
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
+            <label htmlFor={modelId} className="text-[11px] uppercase tracking-wider text-[rgb(var(--muted))] block mb-1">
               Model
             </label>
             <select
+              id={modelId}
               value={currentModel}
               onChange={(e) => onChangeModel(e.target.value)}
               className="input select"
@@ -311,6 +372,7 @@ function ProviderCard({
 
           {testResult && (
             <div
+              role="status"
               className={`text-xs rounded-lg border px-3 py-2 ${
                 testResult.ok
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"

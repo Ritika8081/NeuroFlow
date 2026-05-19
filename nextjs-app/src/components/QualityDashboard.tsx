@@ -60,9 +60,9 @@ export default function QualityDashboard({ analysis, channelNames }: Props) {
 
         {/* Components */}
         <div className="sm:col-span-2 glass rounded-2xl p-5 space-y-3">
-          <div className="eyebrow">
+          <h3 className="eyebrow">
             Score breakdown
-          </div>
+          </h3>
           {quality.components.map((c) => (
             <div key={c.name}>
               <div className="flex justify-between text-xs mb-1">
@@ -83,9 +83,9 @@ export default function QualityDashboard({ analysis, channelNames }: Props) {
 
       {/* Channel matrix */}
       <div className="glass rounded-2xl p-5">
-        <div className="eyebrow mb-3">
+        <h3 className="eyebrow mb-3">
           Channel health · {channelNames.length} channels
-        </div>
+        </h3>
         <div className="flex flex-wrap gap-1.5">
           {channelNames.map((name, i) => {
             const bad = badSet.has(name);
@@ -109,9 +109,9 @@ export default function QualityDashboard({ analysis, channelNames }: Props) {
 
       {/* Artifact summary */}
       <div className="glass rounded-2xl p-5">
-        <div className="eyebrow mb-3">
+        <h3 className="eyebrow mb-3">
           Detected artifacts
-        </div>
+        </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { k: "blink", label: "Blinks" },

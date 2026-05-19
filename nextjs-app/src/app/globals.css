@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ================================================================== */
 /*  NeuroFlow Lab — Calm Confidence                                   */
@@ -429,6 +429,18 @@ body::after {
   50% { opacity: 0.65; }
 }
 .pulse-soft { animation: pulse-soft 2.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .wave-bar, .wave-flow, .animate-shimmer, .pulse-soft, .neural-pulse {
+    animation: none !important;
+  }
+}
 
 /* ================================================================== */
 /*  Scrollbar                                                          */

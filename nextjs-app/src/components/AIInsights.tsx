@@ -8,18 +8,18 @@ interface Props {
   analysis: AnalysisBundle;
 }
 
-const SEVERITY_BORDER: Record<string, string> = {
-  good: "border-l-emerald-500",
-  info: "border-l-[rgb(var(--accent))]",
-  warn: "border-l-amber-500",
-  danger: "border-l-red-500",
+const SEVERITY_CHIP: Record<string, string> = {
+  good: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  info: "bg-[rgb(var(--accent-bg))] text-[rgb(var(--accent-fg))] border-[rgb(var(--accent))]/30",
+  warn: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  danger: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
 };
 
-const SEVERITY_DOT: Record<string, string> = {
-  good: "bg-emerald-500",
-  info: "bg-[rgb(var(--accent))]",
-  warn: "bg-amber-500",
-  danger: "bg-red-500",
+const SEVERITY_LABEL: Record<string, string> = {
+  good: "ok",
+  info: "info",
+  warn: "warn",
+  danger: "alert",
 };
 
 export default function AIInsights({ analysis }: Props) {
@@ -32,7 +32,7 @@ export default function AIInsights({ analysis }: Props) {
       <div className="surface rounded-xl p-6 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <div className="eyebrow mb-2">Cognitive state</div>
+            <h3 className="eyebrow mb-2">Cognitive state</h3>
             <div className="text-3xl sm:text-4xl font-medium tracking-tight capitalize">
               {cognitive.state}
             </div>
@@ -93,15 +93,19 @@ export default function AIInsights({ analysis }: Props) {
 
       {/* Findings */}
       <div className="space-y-2">
-        <div className="eyebrow">Findings</div>
+        <h3 className="eyebrow">Findings</h3>
         {findings.map((f, i) => (
           <div
             key={i}
-            className={`rounded-lg border bg-[rgb(var(--surface))] border-l-4 ${SEVERITY_BORDER[f.severity]} px-4 py-3 animate-fade-up`}
+            className="rounded-lg border bg-[rgb(var(--surface))] px-4 py-3 animate-fade-up"
             style={{ animationDelay: `${i * 20}ms` }}
           >
             <div className="flex items-start gap-3">
-              <span className={`mt-1.5 h-1.5 w-1.5 rounded-full ${SEVERITY_DOT[f.severity]} shrink-0`} />
+              <span
+                className={`shrink-0 mt-0.5 inline-flex items-center text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded border ${SEVERITY_CHIP[f.severity]}`}
+              >
+                {SEVERITY_LABEL[f.severity]}
+              </span>
               <div className="flex-1">
                 <div className="font-medium text-sm">{f.title}</div>
                 <div className="text-xs text-[rgb(var(--muted))] mt-1 leading-relaxed">{f.body}</div>

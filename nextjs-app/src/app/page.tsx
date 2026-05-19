@@ -775,7 +775,16 @@ export default function Home() {
             </button>
           </div>
           <button
-            onClick={() => { setUploadResult(null); setCleanedResult(null); setFile(null); setActiveTab("insights"); }}
+            onClick={() => {
+              const confirmed = window.confirm(
+                "Start a new recording? This will close the current analysis. Make sure you've downloaded any results you want to keep."
+              );
+              if (!confirmed) return;
+              setUploadResult(null);
+              setCleanedResult(null);
+              setFile(null);
+              setActiveTab("insights");
+            }}
             className="btn btn-secondary text-xs"
             title="Load a different recording"
           >
@@ -842,6 +851,9 @@ export default function Home() {
           <WorkspaceSidebar items={SIDEBAR_ITEMS} active={activeTab} onChange={setActiveTab} />
 
           <div className="flex-1 min-w-0 animate-fade-up">
+            <h2 className="sr-only">
+              {SIDEBAR_ITEMS.find((it) => it.id === activeTab)?.label ?? "Workspace"}
+            </h2>
             {activeTab === "insights" && <AIInsights analysis={analysis} />}
             {activeTab === "waveform" && <EEGVisualization eegData={activeData} />}
             {activeTab === "frequency" && <Card><PSDView data={channelData} channelNames={activeData.channel_names} sampleRate={activeData.sampling_rate} /></Card>}

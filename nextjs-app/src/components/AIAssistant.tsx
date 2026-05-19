@@ -32,10 +32,32 @@ export default function AIAssistant({ context, onApplyPipeline, onOpenSettings }
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<AssistantMessage[] | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { config, active } = useAI();
   const isLocal = config.activeProvider === "local";
+
+  const clearWithUndo = () => {
+    if (messages.length === 0) return;
+    setUndoSnapshot(messages);
+    setMessages([]);
+    setError(null);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    undoTimeoutRef.current = setTimeout(() => setUndoSnapshot(null), 6000);
+  };
+
+  const undoClear = () => {
+    if (!undoSnapshot) return;
+    setMessages(undoSnapshot);
+    setUndoSnapshot(null);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+  };
+
+  useEffect(() => () => {
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     if (context && messages.length === 0) {
@@ -171,7 +193,7 @@ export default function AIAssistant({ context, onApplyPipeline, onOpenSettings }
               Provider
             </button>
           )}
-          <button onClick={() => { setMessages([]); setError(null); }} className="btn btn-ghost text-xs">
+          <button onClick={clearWithUndo} disabled={messages.length === 0} className="btn btn-ghost text-xs">
             Reset
           </button>
         </div>
@@ -187,19 +209,28 @@ export default function AIAssistant({ context, onApplyPipeline, onOpenSettings }
           <Bubble key={i} message={m} />
         ))}
         {thinking && (
-          <div className="flex items-center gap-2 text-[rgb(var(--muted))] text-xs">
-            <div className="flex gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-bounce" />
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0.1s" }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0.2s" }} />
+          <div className="flex items-center gap-2 text-[rgb(var(--muted))] text-xs" role="status" aria-live="polite">
+            <div className="flex items-end gap-1 h-3 text-[rgb(var(--accent))]/70" aria-hidden="true">
+              <span className="wave-bar h-full" />
+              <span className="wave-bar h-full" style={{ animationDelay: "0.15s" }} />
+              <span className="wave-bar h-full" style={{ animationDelay: "0.3s" }} />
             </div>
             thinking
-            <button onClick={stop} className="ml-2 text-[rgb(var(--muted))] hover:text-rose-400 underline underline-offset-2">
+            <button onClick={stop} className="ml-2 text-[rgb(var(--muted))] hover:text-[rgb(var(--danger))] underline underline-offset-2">
               stop
             </button>
           </div>
         )}
       </div>
+
+      {undoSnapshot && (
+        <div role="status" aria-live="polite" className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-md border bg-[rgb(var(--surface-2))] px-3 py-2 text-xs text-[rgb(var(--text-soft))] animate-fade-up">
+          <span>Chat cleared.</span>
+          <button onClick={undoClear} className="btn btn-ghost text-xs">
+            Undo
+          </button>
+        </div>
+      )}
 
       {context && messages.length <= 1 && (
         <div className="px-5 pb-2 flex flex-wrap gap-1.5">
@@ -316,7 +347,7 @@ function renderInline(line: string): React.ReactNode {
       remaining = remaining.slice(ital[0].length);
     } else if (code) {
       tokens.push(
-        <code key={key++} className="px-1 py-0.5 rounded bg-black/20 font-mono text-[12px]">
+        <code key={key++} className="px-1 py-0.5 rounded bg-[rgb(var(--surface-3))] mono text-[12px]">
           {code[1]}
         </code>
       );

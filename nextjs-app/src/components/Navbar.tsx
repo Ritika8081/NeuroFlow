@@ -28,7 +28,7 @@ export default function Navbar() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2 shrink-0 group">
-          <span className="inline-flex h-7 w-7 rounded-lg bg-gradient-to-br from-[rgb(var(--accent))]/15 to-[rgb(var(--coral))]/10 border border-[rgb(var(--accent))]/25 items-center justify-center group-hover:border-[rgb(var(--accent))]/50 transition-colors">
+          <span className="inline-flex h-7 w-7 rounded-lg bg-[rgb(var(--accent-bg))] border border-[rgb(var(--accent))]/25 items-center justify-center group-hover:border-[rgb(var(--accent))]/50 transition-colors">
             <Logo className="h-3.5 w-3.5 text-[rgb(var(--accent-fg))]" />
           </span>
           <span className="font-semibold text-[15px] tracking-tight hidden xs:inline sm:inline">NeuroFlow Lab</span>

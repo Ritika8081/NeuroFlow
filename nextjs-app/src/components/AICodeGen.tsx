@@ -143,7 +143,7 @@ export default function AICodeGen({ summary, onOpenSettings }: Props) {
 
       {code && (
         <div className="space-y-3">
-          <pre className="rounded-xl border bg-black/40 p-4 text-[12px] font-mono leading-relaxed max-h-[520px] overflow-auto whitespace-pre">
+          <pre className="rounded-xl border bg-[rgb(var(--surface-3))] dark:bg-[rgb(var(--bg-deep))] p-4 text-[12px] mono leading-relaxed max-h-[520px] overflow-auto whitespace-pre">
             <code>{code}</code>
           </pre>
           <div className="flex items-center gap-2">
